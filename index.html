@@ -6,13 +6,38 @@
   <title>N3 Ops · Painel de Atendimentos</title>
   <link rel="icon" type="image/png" href="favicon-32x32-removebg-preview.png">
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Loader inicial — independente do styles.css */
+    .init-loader {
+      display:flex; align-items:center; justify-content:center;
+      height:100vh; flex-direction:column; gap:14px;
+      font-family:system-ui,-apple-system,sans-serif;
+      background:#07070D; color:#A0A0BE; padding:20px; text-align:center;
+    }
+    .init-loader .ring {
+      width:32px; height:32px;
+      border:2px solid rgba(255,255,255,.08);
+      border-top-color:#4ECDC4;
+      border-radius:50%;
+      animation:initspin .7s linear infinite;
+    }
+    .init-loader .status {
+      font-size:.72rem; letter-spacing:.1em;
+      text-transform:uppercase; font-weight:600;
+    }
+    .init-loader .substatus {
+      font-size:.62rem; color:#5E5E80;
+      font-family:Consolas,'Courier New',monospace;
+    }
+    @keyframes initspin { to { transform:rotate(360deg) } }
+  </style>
 </head>
 <body>
 <div id="root">
-  <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:14px;font-family:system-ui;background:#07070D;color:#A0A0BE">
-    <div style="width:32px;height:32px;border:2px solid rgba(255,255,255,.08);border-top-color:#4ECDC4;border-radius:50%;animation:spin .7s linear infinite"></div>
-    <div style="font-size:.7rem;letter-spacing:.1em;text-transform:uppercase">Carregando…</div>
-    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  <div class="init-loader">
+    <div class="ring"></div>
+    <div class="status" id="loader-status">Inicializando…</div>
+    <div class="substatus" id="loader-substatus"></div>
   </div>
 </div>
 
@@ -23,27 +48,40 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- ══ LOADER MANUAL ══
-     O Babel automático (via <script type="text/babel" src="...">) falha em vários
-     ambientes (GitHub Pages, file://, alguns firewalls). Este loader faz o
-     processo manualmente: fetch → transform JSX → executa.
-================================================================== -->
+<!-- ══ LOADER MANUAL (com progresso visível em cada etapa) ══ -->
 <script>
 (async function() {
   const root = document.getElementById('root');
 
+  const setStatus = (main, sub = '') => {
+    const m = document.getElementById('loader-status');
+    const s = document.getElementById('loader-substatus');
+    if (m) m.textContent = main;
+    if (s) s.textContent = sub;
+  };
+
   const showError = (title, detail) => {
     root.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:14px;font-family:system-ui;background:#07070D;color:#F0F0FA;padding:20px">' +
-      '<span style="font-size:2.2rem">⚠️</span>' +
-      '<h3 style="font-size:1rem;font-weight:700">' + title + '</h3>' +
-      '<pre style="font-size:.74rem;color:#F87171;background:rgba(248,113,113,.08);padding:10px 14px;border-radius:8px;max-width:520px;white-space:pre-wrap;text-align:left;font-family:Consolas,monospace">' + String(detail).replace(/</g,'&lt;') + '</pre>' +
-      '<button onclick="location.reload()" style="margin-top:8px;padding:9px 20px;background:#4ECDC4;color:#07070D;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem">Tentar novamente</button>' +
+        '<span style="font-size:2.2rem">⚠️</span>' +
+        '<h3 style="font-size:1rem;font-weight:700">' + title + '</h3>' +
+        '<pre style="font-size:.74rem;color:#F87171;background:rgba(248,113,113,.08);padding:10px 14px;border-radius:8px;max-width:580px;white-space:pre-wrap;text-align:left;font-family:Consolas,monospace;overflow:auto;max-height:50vh">' + String(detail).replace(/</g,'&lt;') + '</pre>' +
+        '<button onclick="location.reload()" style="padding:9px 20px;background:#4ECDC4;color:#07070D;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem">Tentar novamente</button>' +
       '</div>';
   };
 
+  // Captura erros globais que possam escapar do try/catch
+  window.addEventListener('error', e => {
+    if (root.querySelector('.init-loader')) {
+      showError('Erro de runtime no app', (e.error?.stack || e.message || 'Erro desconhecido') + '\n\nLinha: ' + e.lineno + ' · Coluna: ' + e.colno);
+    }
+  });
+
   try {
-    // ── 1. Verifica libs ──
+    // ── ETAPA 1: Verifica libs ──
+    setStatus('Verificando bibliotecas', '1 de 4');
+    await new Promise(r => setTimeout(r, 30));
+
     const missing = [];
     if (!window.React)    missing.push('React');
     if (!window.ReactDOM) missing.push('ReactDOM');
@@ -51,42 +89,63 @@
     if (!window.Swal)     missing.push('SweetAlert2');
     if (!window.Babel)    missing.push('Babel');
     if (missing.length) {
-      throw new Error('Falha ao carregar as dependências: ' + missing.join(', ') + '.\nVerifique sua conexão ou se o firewall não está bloqueando unpkg.com / cdn.jsdelivr.net.');
+      throw new Error('Bibliotecas não carregadas: ' + missing.join(', ') + '\n\nVerifique se o CDN (unpkg.com / cdn.jsdelivr.net) não está bloqueado.');
     }
 
-    // ── 2. Busca o app.js ──
+    // ── ETAPA 2: Busca o app.js ──
+    setStatus('Buscando app.js', '2 de 4');
     let code;
     try {
-      const res = await fetch('app.js?v=' + Date.now()); // cache-buster
-      if (!res.ok) throw new Error('HTTP ' + res.status + ' ao buscar app.js');
+      const res = await fetch('app.js?v=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
       code = await res.text();
       if (!code.trim()) throw new Error('app.js está vazio');
     } catch (e) {
-      throw new Error('Não foi possível carregar app.js:\n' + e.message + '\n\nVerifique se o arquivo está na mesma pasta do index.html.');
+      throw new Error('Falha ao buscar app.js:\n' + e.message);
     }
 
-    // ── 3. Transforma JSX → JS ──
+    // ── ETAPA 3: Transpila JSX → JS ──
+    setStatus('Compilando JSX', '3 de 4 · ' + Math.round(code.length / 1024) + ' KB');
+    await new Promise(r => setTimeout(r, 30));
+
     let transformed;
     try {
-      transformed = Babel.transform(code, {
-        presets: ['react'],
-        sourceType: 'script'
-      }).code;
+      const result = Babel.transform(code, {
+        presets: [['react', { runtime: 'classic' }]],
+        sourceType: 'script',
+        compact: true
+      });
+      transformed = result.code;
+      if (!transformed) throw new Error('Babel retornou código vazio');
     } catch (e) {
-      throw new Error('Erro de sintaxe ao transpilar app.js:\n' + e.message);
+      throw new Error('Erro de sintaxe ao compilar app.js:\n' + e.message);
     }
 
-    // ── 4. Executa ──
+    // ── ETAPA 4: Executa ──
+    setStatus('Iniciando aplicativo', '4 de 4');
+    await new Promise(r => setTimeout(r, 30));
+
     try {
-      const script = document.createElement('script');
-      script.textContent = transformed;
-      document.body.appendChild(script);
+      // new Function() em vez de <script> injection — erros de runtime
+      // propagam sincronicamente e são capturados pelo try/catch
+      const runner = new Function(transformed);
+      runner();
     } catch (e) {
-      throw new Error('Erro ao executar o app:\n' + e.message);
+      throw new Error('Erro de runtime ao executar app.js:\n' + (e.stack || e.message));
     }
+
+    // ── Verifica se o React montou após 1.5s ──
+    setTimeout(() => {
+      if (document.querySelector('.init-loader')) {
+        showError(
+          'App carregou mas não renderizou',
+          'O código de app.js foi executado, mas o React não substituiu o conteúdo de #root.\n\nProvavelmente algum erro silencioso em useEffect ou render. Abra o Console (F12) para ver detalhes.'
+        );
+      }
+    }, 1500);
 
   } catch (e) {
-    console.error('[Painel N3] Falha na inicialização:', e);
+    console.error('[Painel N3] Falha:', e);
     showError('Falha ao inicializar o painel', e.message);
   }
 })();
