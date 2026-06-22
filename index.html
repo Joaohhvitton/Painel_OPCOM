@@ -8,44 +8,89 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:14px;font-family:system-ui;background:#07070D;color:#A0A0BE">
+    <div style="width:32px;height:32px;border:2px solid rgba(255,255,255,.08);border-top-color:#4ECDC4;border-radius:50%;animation:spin .7s linear infinite"></div>
+    <div style="font-size:.7rem;letter-spacing:.1em;text-transform:uppercase">Carregando…</div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  </div>
+</div>
 
-<!-- ══ REACT ══ -->
+<!-- ══ DEPENDÊNCIAS (CDN) ══ -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-
-<!-- ══ CHART.JS ══ -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-
-<!-- ══ SWEETALERT2 ══ -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-
-<!-- ══ BABEL (transpila JSX inline) ══ -->
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- ══ VERIFICAÇÃO DE LIBS ══ -->
+<!-- ══ LOADER MANUAL ══
+     O Babel automático (via <script type="text/babel" src="...">) falha em vários
+     ambientes (GitHub Pages, file://, alguns firewalls). Este loader faz o
+     processo manualmente: fetch → transform JSX → executa.
+================================================================== -->
 <script>
-  (function() {
-    var missing = [];
+(async function() {
+  const root = document.getElementById('root');
+
+  const showError = (title, detail) => {
+    root.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:14px;font-family:system-ui;background:#07070D;color:#F0F0FA;padding:20px">' +
+      '<span style="font-size:2.2rem">⚠️</span>' +
+      '<h3 style="font-size:1rem;font-weight:700">' + title + '</h3>' +
+      '<pre style="font-size:.74rem;color:#F87171;background:rgba(248,113,113,.08);padding:10px 14px;border-radius:8px;max-width:520px;white-space:pre-wrap;text-align:left;font-family:Consolas,monospace">' + String(detail).replace(/</g,'&lt;') + '</pre>' +
+      '<button onclick="location.reload()" style="margin-top:8px;padding:9px 20px;background:#4ECDC4;color:#07070D;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem">Tentar novamente</button>' +
+      '</div>';
+  };
+
+  try {
+    // ── 1. Verifica libs ──
+    const missing = [];
     if (!window.React)    missing.push('React');
     if (!window.ReactDOM) missing.push('ReactDOM');
     if (!window.Chart)    missing.push('Chart.js');
     if (!window.Swal)     missing.push('SweetAlert2');
     if (!window.Babel)    missing.push('Babel');
     if (missing.length) {
-      document.getElementById('root').innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;font-family:system-ui;background:#07070D;color:#F0F0FA">' +
-        '<span style="font-size:2rem">⚠️</span>' +
-        '<h3 style="font-size:1rem">Falha ao carregar dependências</h3>' +
-        '<p style="font-size:.8rem;color:#A0A0BE;text-align:center;max-width:400px">Não foi possível carregar: <strong>' + missing.join(', ') + '</strong>.<br>Verifique sua conexão com a internet ou coloque as libs na pasta <code>libs/</code>.</p>' +
-        '<button onclick="location.reload()" style="padding:8px 18px;background:#4ECDC4;color:#07070D;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem">Tentar novamente</button>' +
-        '</div>';
+      throw new Error('Falha ao carregar as dependências: ' + missing.join(', ') + '.\nVerifique sua conexão ou se o firewall não está bloqueando unpkg.com / cdn.jsdelivr.net.');
     }
-  })();
-</script>
 
-<!-- ══ APP (JSX transpilado pelo Babel) ══ -->
-<script type="text/babel" src="app.js" data-presets="react"></script>
+    // ── 2. Busca o app.js ──
+    let code;
+    try {
+      const res = await fetch('app.js?v=' + Date.now()); // cache-buster
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ao buscar app.js');
+      code = await res.text();
+      if (!code.trim()) throw new Error('app.js está vazio');
+    } catch (e) {
+      throw new Error('Não foi possível carregar app.js:\n' + e.message + '\n\nVerifique se o arquivo está na mesma pasta do index.html.');
+    }
+
+    // ── 3. Transforma JSX → JS ──
+    let transformed;
+    try {
+      transformed = Babel.transform(code, {
+        presets: ['react'],
+        sourceType: 'script'
+      }).code;
+    } catch (e) {
+      throw new Error('Erro de sintaxe ao transpilar app.js:\n' + e.message);
+    }
+
+    // ── 4. Executa ──
+    try {
+      const script = document.createElement('script');
+      script.textContent = transformed;
+      document.body.appendChild(script);
+    } catch (e) {
+      throw new Error('Erro ao executar o app:\n' + e.message);
+    }
+
+  } catch (e) {
+    console.error('[Painel N3] Falha na inicialização:', e);
+    showError('Falha ao inicializar o painel', e.message);
+  }
+})();
+</script>
 
 </body>
 </html>
